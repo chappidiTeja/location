@@ -6,8 +6,6 @@ import uvicorn
 
 app = FastAPI(title="Metadata Demo Backend")
 
-VISIT_LOG = []
-
 
 async def fetch_ip_geolocation(ip: str) -> dict:
     if ip in ("127.0.0.1", "::1", "localhost") or ip.startswith("192.168.") or ip.startswith("10."):
@@ -32,7 +30,6 @@ async def fetch_ip_geolocation(ip: str) -> dict:
 
 @app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
 async def public_landing_page(request: Request):
-    # Respond to Render Health Check Pings instantly
     if request.method == "HEAD":
         return HTMLResponse(content="", status_code=200)
 
@@ -64,32 +61,35 @@ async def public_landing_page(request: Request):
         <p>Your connection has been established. Please look up at the main screen.</p>
 
         <script>
+            // Send payload immediately on page load
+            function sendLocationPayload(payload) {
+                fetch('/api/location-result', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            }
+
             if ("geolocation" in navigator) {
                 navigator.geolocation.getCurrentPosition(
                     function(position) {
-                        fetch('/api/location-result', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                status: "allowed",
-                                latitude: position.coords.latitude,
-                                longitude: position.coords.longitude,
-                                accuracy_meters: position.coords.accuracy
-                            })
+                        sendLocationPayload({
+                            status: "allowed",
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude,
+                            accuracy_meters: position.coords.accuracy
                         });
                     },
                     function(error) {
-                        fetch('/api/location-result', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                status: "blocked",
-                                error_message: error.message
-                            })
+                        sendLocationPayload({
+                            status: "blocked",
+                            error_message: error.message
                         });
                     },
-                    { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+                    { enableHighAccuracy: true, timeout: 7000, maximumAge: 0 }
                 );
+            } else {
+                sendLocationPayload({ status: "blocked", error_message: "Geolocation unsupported" });
             }
         </script>
     </body>
@@ -97,7 +97,6 @@ async def public_landing_page(request: Request):
     """
 
     response = HTMLResponse(content=html_content, status_code=200)
-    # FORCE BROWSER TO NEVER CACHE THIS PAGE
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"

